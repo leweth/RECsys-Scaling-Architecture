@@ -7,9 +7,12 @@ producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
                          value_serializer=lambda x: 
                          json.dumps(x).encode('utf-8'))
 
-with open('forKafkatesting.csv') as file_obj:
-    reader_obj = csv.reader(file_obj)
-    for data in reader_obj: 
-        print(data)
-        producer.send('numtest', value=data)
-        sleep(3)
+with open('Kafka_testing_dataset/dataset.csv') as file_obj:
+	reader_obj = csv.reader(file_obj)
+	for data in reader_obj: 
+		if data[0] == 'rating':
+			print("Skipping header row ...")
+			continue
+		print(data)
+		producer.send('numtest', value=data)
+		sleep(3)
