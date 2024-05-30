@@ -3,6 +3,7 @@ from kafka import KafkaConsumer
 from json import loads
 from pymongo import MongoClient
 from pyspark.sql import SparkSession
+import os
 
 
 
@@ -28,26 +29,18 @@ consumer = KafkaConsumer(
     group_id='my-group',
     value_deserializer=lambda x: loads(x.decode('utf-8')))
 
-
-
-
 def recommend_for_user(user_id, num_recommendations=10):
-    """
-    To create a dataframe we need a tuple and the column name, the tuple usually contains
-    the elements for a row, however since we only have the user_ids then we could just 
-	make one element tuple and then put the comma to specify that has only one element
-    """
-    
     user_df = spark.createDataFrame([(user_id,)], ["userIDIndex"])
     recommendations = als_model.recommendForUserSubset(user_df, num_recommendations)
     return recommendations
 
-
-
-
 for message in consumer:
     record = message.value
-
+    
+    # Check if the record is a header
+    if record[0] == 'rating':
+        print("Skipping header row")
+        continue
 
     # Ensure correct parsing of incoming data
     try:
@@ -60,11 +53,12 @@ for message in consumer:
         print(f"Error parsing record: {record}, Error: {e}")
         continue
     
-
  # Generate recommendations for the user
     recommendations = recommend_for_user(userIDIndex)
-    # recommendations.show()
     
+    # Print schema and content for debugging
+    recommendations.printSchema()
+    recommendations.show(truncate=False)
 
     # Check if recommendations DataFrame contains expected columns
     if 'recommendations' not in recommendations.columns:
@@ -73,7 +67,7 @@ for message in consumer:
 
     # Collect the recommendations
     recommendations_list = recommendations.select("userIDIndex", "recommendations").collect()
-    
+
     for rec in recommendations_list:
         user = rec.userIDIndex
         products = [row.productIDIndex for row in rec.recommendations]
@@ -87,7 +81,6 @@ for message in consumer:
         # Insert document into MongoDB collection
         collection.insert_one(recommendation_doc)
 
-
     print("Recommendations for user:", user)
     print("Recommended products:", products)
-    print("*"*50)
+    print("/"*50)
